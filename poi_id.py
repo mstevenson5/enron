@@ -6,14 +6,17 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import sklearn.preprocessing as pp
+import warnings
 from datetime import datetime
 
 
 sys.path.append("../tools/")
 
+
 from feature_format import featureFormat, targetFeatureSplit
 from tester import dump_classifier_and_data
 
+from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import recall_score
@@ -122,7 +125,7 @@ def feature_selection(df, n):
     
     # Transform Array
     X_new = pd.DataFrame(SelectKBest(chi2, n).fit_transform(x, y))
-
+    
     # Get the new list of features
     features_list = ["poi"]
     for i in range(len(X_new.columns)):
@@ -137,6 +140,21 @@ def feature_selection(df, n):
     
 
 def run_nb_classifier(x_train, y_train, x_test, y_test):
+    '''
+    Function:    run_nb_classifier
+    Inputs:      x_train - feature training dataset
+                 y_train - label training dataset
+                 x_test - feature test dataset
+                 y_test - label test dataset
+    Outputs:     pred - predictions made by algorithm on test data
+                 acc - accuracy metric of the algorithm
+                 rec - recall metric of the algorithm
+                 prec - prescision metric of the algorithm
+                 clf - model of the algorithm
+    Description: 
+        This function aims to train and predict the dataset using the Naive Bayes
+        classifier
+    '''
     from sklearn.naive_bayes import GaussianNB
     
     clf = GaussianNB()
@@ -150,6 +168,23 @@ def run_nb_classifier(x_train, y_train, x_test, y_test):
     return pred, acc, rec, prec, clf
 
 def run_svm_classifier(x_train, y_train, x_test, y_test, data):
+    '''
+    Function:    run_svm_classifier
+    Inputs:      x_train - feature training dataset
+                 y_train - label training dataset
+                 x_test - feature test dataset
+                 y_test - label test dataset
+                 data - dataset
+    Outputs:     pred - predictions made by algorithm on test data
+                 acc - accuracy metric of the algorithm
+                 rec - recall metric of the algorithm
+                 prec - prescision metric of the algorithm
+                 clf - model of the algorithm
+    Description: 
+        This function aims to train and predict the dataset using the Support Vector Machine
+        classifier.
+        This function uses GridSearch to find the best parameters for the SVM classifier.
+    '''
     from sklearn import svm
     
     if tune_required:
@@ -172,6 +207,23 @@ def run_svm_classifier(x_train, y_train, x_test, y_test, data):
     return pred, acc, rec, prec, clf
 
 def run_tree_classifier(x_train, y_train, x_test, y_test, data):
+    '''
+    Function:    run_tree_classifier
+    Inputs:      x_train - feature training dataset
+                 y_train - label training dataset
+                 x_test - feature test dataset
+                 y_test - label test dataset
+                 data - dataset
+    Outputs:     pred - predictions made by algorithm on test data
+                 acc - accuracy metric of the algorithm
+                 rec - recall metric of the algorithm
+                 prec - prescision metric of the algorithm
+                 clf - model of the algorithm
+    Description: 
+        This function aims to train and predict the dataset using the Decision Tree
+        classifier.
+        This function uses GridSearch to find the best parameters for the DT classifier.
+    '''
     from sklearn import tree
     
     if tune_required:
@@ -264,7 +316,7 @@ def main():
     '''
     
     if debug: print(name, "has been removed from the dataset")
-    df = df.drop(name)
+    df = df.drop(name) 
     
     features_plot(df, 'salary', 'bonus')
     name = df[df['salary'] == df["salary"].max()].index[0]
@@ -308,18 +360,23 @@ def main():
               (row['salary'] < percentage_to_remove or row['salary']  > 1-percentage_to_remove) and \
               (row['bonus'] < percentage_to_remove or row['bonus']  > 1-percentage_to_remove):
             outlier_names.append(name)
+            
+    if debug: print('Number of outliers  identified: %i.' % len(outlier_names))
+    if debug: print(outlier_names)
     
-    # Remove all outliers from the orignal df
-    df = df.drop(outlier_names)
-
-    if debug: print('Number of outlier to removed: %i, leaving %i records in the dataset.'\
-                    % (len(outlier_names), len(df)))
-
-    
+    '''
+    This method identified 58 outliers in the top or bottom 10% of the salary and bonus feature that
+    weren't POIs, however when reviewing the list of outliers they looked like they could be real 
+    people, with the exception of 'THE TRAVEL AGENCY IN THE PARK'. Due to small number of records 
+    in the first place i decided to only remove the travel agency.
+    '''
+    # Remove outliers from the orignal df
+    df = df.drop('THE TRAVEL AGENCY IN THE PARK')  
+    # Replot the graph
     features_plot(df, 'salary', 'bonus')
     
     '''
-    54 outliers were removed from the dataset, leaving 91 records.
+    2 outliers were removed from the dataset, leaving 144 records.
     '''
     
     print("")
@@ -376,10 +433,44 @@ def main():
     Function to find the most usefuel features, further details provide in the function
     description
     '''
+    if debug: print('Complete features list:', " ".join(features_list), '\n')
     no_features = 5
-    features_list, features_df = feature_selection(df[features_list], no_features)
-    if debug: print('Final features list:', " ".join(features_list))
+    no_features = [2, 4, 5, 6, 8]
+    mean_score = []
     
+    if debug: print('\nFeatures Selection Results:')
+    if debug: print('NoFeatures;Type;Acc;Rec;Prec;Score')
+    
+    for k in range(len(no_features)):
+        score = np.zeros([1,3])
+        
+        fl, features_df = feature_selection(df[features_list], no_features[k])
+        
+        labels = features_df['poi']
+        features = features_df.drop(["poi"], axis = 1)
+        
+        x_train, x_test, y_train, y_test = train_test_split(features, labels, \
+                                train_size=0.6, random_state=38)
+        
+        pred, acc, rec, prec, clf = run_nb_classifier(x_train, y_train, x_test, y_test)
+        score[0,0] = acc + rec + prec
+        if debug: print ('%i;NB;%.2f;%.2f;%.2f;%.2f' %(no_features[k], acc, rec, prec,  score[0,0]))
+                
+        pred, acc, rec, prec, clf = run_svm_classifier(x_train, y_train, x_test, y_test, features_df)
+        score[0,1] = acc + rec + prec
+        if debug: print ('%i;SVM;%.2f;%.2f;%.2f;%.2f' %(no_features[k], acc, rec, prec,  score[0,1]))
+        
+        pred, acc, rec, prec, clf = run_tree_classifier(x_train, y_train, x_test, y_test, features_df)
+        score[0,2] = acc + rec + prec
+        if debug: print ('%i;DT;%.2f;%.2f;%.2f;%.2f' %(no_features[k], acc, rec, prec,  score[0,2]))
+        
+        mean_score.append(score.mean())
+    
+    max_index = np.argmax(mean_score, axis=0)
+    if debug: print('Highest scoring feature list: ', no_features[max_index])
+    
+    features_list, features_df = feature_selection(df[features_list], no_features[max_index])
+    print('Final features list:', " ".join(features_list), '\n')
     '''
     Before implementing the scaling function the feature selection function selected 
     the total_payments, total_stock_value & exercised_stock_options features as the 
@@ -412,11 +503,7 @@ def main():
         
     labels = features_df['poi']
     features = features_df.drop(["poi"], axis = 1)
-    
-    if debug: print(labels.head())
-    if debug: print("")
-    if debug: print(features.head())
-    
+        
     ### Task 4: Try a varity of classifiers
     ### Please name your classifier clf for easy export below.
     ### Note that if you want to do PCA or other multi-stage operations,
@@ -425,64 +512,68 @@ def main():
     
     # Provided to give you a starting point. Try a variety of classifiers.
     results = []
-    
-    '''
-    
-    '''
-
+    raw_results = []
+ 
     print("")
     print("")
     print("********************************************************************")
     print("Results:")
     
-    train_size = [0.5, 0.6, 0.66, 0.7, 0.75, 0.8]
-
-    i = 0
-    for i in range(len(train_size)):
-        print('*** Iteration: %i has a training size of %i%%' % (i, train_size[i] * 100))
+       
+    '''
+    Use the StratifiedShuffleSplit function to ensure both train and test dataset have
+    enough records with POI to accurately measure the performance metrics.
+    '''
     
-        x_train, x_test, y_train, y_test = train_test_split(features, labels, \
-                                        train_size=train_size[i], random_state=42)
+    sss = StratifiedShuffleSplit(n_splits=20, test_size=0.4, random_state=12)
+
+    print('Index;Type;Acc;Rec;Prec;Score')
+    i = 0
+    for train_index, test_index in sss.split(features, labels):
         
+        x_train = features.iloc[train_index]
+        y_train = labels.iloc[train_index]
+        x_test = features.iloc[test_index]
+        y_test = labels.iloc[test_index]
+
         pred, acc, rec, prec, clf = run_nb_classifier(x_train, y_train, x_test, y_test)
         value = {'type':'NB', 'index':i, 'predicitions':pred, 'accuracy':acc, \
                  'recall':rec, 'precision':prec, 'clf':clf}
-        results.append(value)
+        raw_results.append(value)
+        if rec > 0.4 and prec > 0.4:
+            results.append(value)
         
-        print('****** NB, ACC: %.4f, REC: %.4f, PREC: %.4f' % (acc, rec, prec))
-        print('****** ', pred)
-        print("")
+        print('%.0f;NB;%.4f;%.4f;%.4f;%.4f' % (i, acc, rec, prec, acc + rec + prec))
         
         pred, acc, rec, prec, clf = run_svm_classifier(x_train, y_train, x_test, y_test, features_df)
         value = {'type':'SVM', 'index':i, 'predicitions':pred, 'accuracy':acc, \
                  'recall':rec, 'precision':prec, 'clf':clf}
-        results.append(value)
+        raw_results.append(value)
+        if rec > 0.4 and prec > 0.4:
+            results.append(value)
         
-        
-        print('****** SV, ACC: %.4f, REC: %.4f, PREC: %.4f' % (acc, rec, prec))
-        print('****** ', pred)
-        print("")
+        print('%.0f;SVM;%.4f;%.4f;%.4f;%.4f' % (i, acc, rec, prec, acc + rec + prec))
         
         pred, acc, rec, prec, clf = run_tree_classifier(x_train, y_train, x_test, y_test, features_df)
         value = {'type':'DT', 'index':i, 'predicitions':pred, 'accuracy':acc, \
                  'recall':rec, 'precision':prec, 'clf':clf}
-        results.append(value)
+        raw_results.append(value)
+        if rec > 0.4 and prec > 0.4:
+            results.append(value)
         
-        print('****** DT, ACC: %.4f, REC: %.4f, PREC: %.4f' % (acc, rec, prec))
-        print('****** ', pred)
-        print("")
-
-    
+        print('%.0f;DT;%.4f;%.4f;%.4f;%.4f' % (i, acc, rec, prec, acc + rec + prec))
+        i += 1
+        
     print("********************************************************************")
     print("")
     print("")
     
-    df_results = pd.DataFrame(results, columns=['type','index','predicitions','accuracy','recall','precision','clf'])
+    df_results = pd.DataFrame(raw_results, columns=['type','index','predicitions','accuracy','recall','precision','clf'])
     df_results['composite'] = df_results['accuracy'] + df_results['recall'] + df_results['precision']
     
     id_best = df_results['composite'].idxmax()
-    print('The best results were achieved using %s, with a training size of %i%%. Achieving an Accuracy of %.1f%%, Recall of %.1f%% & Perscision of %.1f%%.'\
-          % (df_results['type'].get(id_best), train_size[df_results['index'].get(id_best)] * 100 , \
+    print('The best results were achieved using %s, in index: %i. Achieving an Accuracy of %.1f%%, Recall of %.1f%% & Precision of %.1f%%.'\
+          % (df_results['type'].get(id_best), df_results['index'].get(id_best), \
              df_results['accuracy'].get(id_best) * 100, df_results['recall'].get(id_best) * 100, \
              df_results['precision'].get(id_best) * 100))
 

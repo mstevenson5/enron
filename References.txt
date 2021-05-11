@@ -6,4 +6,5 @@ https://scikit-learn.org/stable/modules/generated/sklearn.metrics.precision_scor
 https://scikit-learn.org/stable/modules/generated/sklearn.metrics.recall_score.html?highlight=recall%20score#sklearn.metrics.recall_score
 https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.GridSearchCV.html?highlight=grid%20search#sklearn.model_selection.GridSearchCV
 https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.MinMaxScaler.html
+https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.StratifiedShuffleSplit.html
 https://stackoverflow.com/questions/49151325/how-to-penalize-false-negatives-more-than-false-positives
